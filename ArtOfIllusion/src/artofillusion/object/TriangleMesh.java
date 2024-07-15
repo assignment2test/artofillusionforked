@@ -34,6 +34,31 @@ import java.util.Vector;
 
 public class TriangleMesh extends Object3D implements FacetedMesh
 {
+  public TriangleMesh convertToTriangleMesh(Cube cube, double tol)
+  {
+    Vec3 v[] = new Vec3 [14];
+    TriangleMesh mesh;
+    int i, faces[][] = {{1, 0, 12}, {2, 1, 12}, {3, 2, 12}, {0, 3, 12},
+            {1, 2, 9},  {2, 6, 9},  {6, 5, 9},  {5, 1, 9},
+            {0, 1, 8},  {1, 5, 8},  {5, 4, 8},  {4, 0, 8},
+            {3, 0, 11}, {0, 4, 11}, {4, 7, 11}, {7, 3, 11},
+            {4, 5, 13}, {5, 6, 13}, {6, 7, 13}, {7, 4, 13},
+            {2, 3, 10}, {3, 7, 10}, {7, 6, 10}, {6, 2, 10}};
+
+    for (i = 0; i < 14; i++)
+      v[i] = new Vec3();
+
+    v[0].x = v[3].x = v[4].x = v[7].x = v[11].x = -cube.halfx;
+    v[1].x = v[2].x = v[5].x = v[6].x = v[9].x  =  cube.halfx;
+    v[0].y = v[1].y = v[2].y = v[3].y = v[12].y = -cube.halfy;
+    v[4].y = v[5].y = v[6].y = v[7].y = v[13].y =  cube.halfy;
+    v[2].z = v[3].z = v[6].z = v[7].z = v[10].z = -cube.halfz;
+    v[0].z = v[1].z = v[4].z = v[5].z = v[8].z  =  cube.halfz;
+    mesh = new TriangleMesh(v, faces);
+    mesh.setSmoothingMethod(TriangleMesh.NO_SMOOTHING);
+    mesh.copyTextureAndMaterial(this);
+    return mesh;
+  }
 
   /** A vertex specifies a position vector, the number of edges which share the vertex, and
       the "first" edge.  If the vertex is in the interior of the mesh, any edge can be the
@@ -274,20 +299,6 @@ public class TriangleMesh extends Object3D implements FacetedMesh
     setShape(vt, faces);
   }
 
-  /** Create a new TriangleMesh using the provided vertices and face topology.
-   *
-   * The vertices for each face must be listed in counter-clockwise
-   * order when viewed from the outside of the mesh. All faces must have
-   * a consistent vertex order, such that the object has a well-defined
-   * outer surface. (That is, the surface must be a manifold.)
-   * This is true even if the mesh does not form a closed surface. It
-   * is an error to call the constructor with a faces[][] array which
-   * does not meet this condition, and the results are undefined.
-   *
-   * @param v[]: An array containing the vertices.
-   * @param faces[][] An N by 3 array containing the indices of the
-   * vertices which define each face.
-   */
 
   public TriangleMesh(Vertex v[], int faces[][])
   {
@@ -3862,6 +3873,7 @@ groups:     do
 
     /** Write out a representation of this keyframe to a stream. */
 
+
     @Override
     public void writeToStream(DataOutputStream out) throws IOException
     {
@@ -3892,6 +3904,7 @@ groups:     do
     }
 
     /** Reconstructs the keyframe from its serialized representation. */
+
 
     public TriangleMeshKeyframe(DataInputStream in, Object parent) throws IOException, InvalidObjectException
     {
