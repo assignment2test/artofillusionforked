@@ -88,58 +88,86 @@ public class ProceduralMaterial3D extends Material3D implements ProcedureOwner
   {
     stepSize = step;
   }
-
+  //ITSFIXED`
   @Override
-  public void getMaterialSpec(MaterialSpec spec, double x, double y, double z, double xsize, double ysize, double zsize, double t)
-  {
+  public void getMaterialSpec(MaterialSpec spec, double x, double y, double z, double xsize, double ysize, double zsize, double t) {
     Procedure pr = (Procedure) renderingProc.get();
     OutputModule output[] = pr.getOutputModules();
-    PointInfo info = new PointInfo();
-    info.x = x;
-    info.y = y;
-    info.z = z;
-    info.xsize = xsize*stepSize;
-    info.ysize = ysize*stepSize;
-    info.zsize = zsize*stepSize;
-    info.t = t;
-    info.param = null;
+    PointInfo info = pointInfoCreation(x, y, z, xsize, ysize, zsize, t);
     pr.initForPoint(info);
-    double density = output[5].getAverageValue(0, 0.0);
-    double eccentricity = output[6].getAverageValue(0, 0.0);
-    if (density < 0.0)
-      density = 0.0;
-    if (density > 1.0)
-      density = 1.0;
-    if (eccentricity < -1.0)
-      eccentricity = -1.0;
-    if (eccentricity > 1.0)
-      eccentricity = 1.0;
+
+    double density = minMax(output[5].getAverageValue(0, 0.0), 0.0, 1.0);
+    double eccentricity = minMax(output[6].getAverageValue(0, 0.0), -1.0, 1.0);
     spec.eccentricity = eccentricity;
-    output[0].getColor(0, spec.color, 0.0);
-    if (density == 0.0)
-      {
-        spec.transparency.setRGB(1.0f, 1.0f, 1.0f);
-        spec.scattering.setRGB(0.0f, 0.0f, 0.0f);
-        return;
-      }
-    double scattering = output[4].getAverageValue(0, 0.0);
-    if (scattering < 0.0)
-      scattering = 0.0;
-    if (scattering > 1.0)
-      scattering = 1.0;
-    output[1].getColor(0, spec.transparency, 0.0);
-    spec.transparency.scale(output[3].getAverageValue(0, 0.0));
-    double tr = spec.transparency.getRed(), tg = spec.transparency.getGreen(), tb = spec.transparency.getBlue();
-    if (tr < 0.0)
-      tr = 0.0;
-    if (tg < 0.0)
-      tg = 0.0;
-    if (tb < 0.0)
-      tb = 0.0;
-    spec.transparency.setRGB((float) Math.pow(tr, density), (float) Math.pow(tg, density), (float) Math.pow(tb, density));
-    output[2].getColor(0, spec.scattering, 0.0);
-    spec.scattering.scale(density*scattering);
+
+
+    setSpecColor(spec, output[0]);
+    if (density == 0.0) {
+      setTransparencyZeroDensity(spec);
+      return;
+    }
+
+    double scattering = minMax(output[4].getAverageValue(0, 0.0), 0.0, 1.0);
+    setSpecTransparency(spec, output[1], output[3], density);
+    setSpecScattering(spec, output[2], density, scattering);
   }
+
+  private PointInfo pointInfoCreation(double x, double y, double z, double xsize, double ysize, double zsize, double t) {
+
+    PointInfo point = new PointInfo();
+
+    point.x = x;
+    point.y = y;
+    point.z = z;
+
+    point.xsize = xsize * stepSize;
+    point.ysize = ysize * stepSize;
+    point.zsize = zsize * stepSize;
+
+    point.t = t;
+    point.param = null;
+
+    return point;
+  }
+
+  private double minMax(double value, double min, double max) {
+
+    if (value < min){
+      return min;
+    }
+
+    if (value > max){
+      return max;
+    }
+
+    return value;
+  }
+
+  private void setSpecColor(MaterialSpec spec, OutputModule outputModule) {
+    outputModule.getColor(0, spec.color, 0.0);
+  }
+
+  private void setTransparencyZeroDensity(MaterialSpec spec) {
+    spec.transparency.setRGB(1.0f, 1.0f, 1.0f);
+    spec.scattering.setRGB(0.0f, 0.0f, 0.0f);
+  }
+
+  private void setSpecTransparency(MaterialSpec spec, OutputModule transparencyModule, OutputModule scaleModule, double density) {
+    transparencyModule.getColor(0, spec.transparency, 0.0);
+    spec.transparency.scale(scaleModule.getAverageValue(0, 0.0));
+
+    double tr = Math.max(0.0, spec.transparency.getRed());
+    double tg = Math.max(0.0, spec.transparency.getGreen());
+    double tb = Math.max(0.0, spec.transparency.getBlue());
+
+    spec.transparency.setRGB((float) Math.pow(tr, density), (float) Math.pow(tg, density), (float) Math.pow(tb, density));
+  }
+
+  private void setSpecScattering(MaterialSpec spec, OutputModule scatteringModule, double density, double scattering) {
+    scatteringModule.getColor(0, spec.scattering, 0.0);
+    spec.scattering.scale(density * scattering);
+  }
+
 
   /** Determine whether this Material uses the specified image. */
 
