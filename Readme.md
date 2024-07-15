@@ -23,6 +23,10 @@ General questions or requests for help can be taken to our
 
 ## Building from source
 
+COMPILATION:
+to compile this file, you run the ant command in the master directory, go to the live_application directory within it, and run the jar file.
+
+
 Experienced Java developers Just run `ant` in this directory.
 Use `ant help` to see more advanced options.
 
