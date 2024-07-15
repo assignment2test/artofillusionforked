@@ -529,200 +529,225 @@ public class TriMeshViewer extends MeshViewer
 
     boolean selected[] = controller.getSelection();
     boolean priorityToSelected = (getRenderMode() == RENDER_WIREFRAME || getRenderMode() == RENDER_TRANSPARENT);
+
     if (controller.getSelectionMode() == MeshEditController.POINT_MODE)
     {
-      TriangleMesh mesh = (TriangleMesh) getController().getObject().getObject();
-      Vertex vt[] = (Vertex []) mesh.getVertices();
-      for (int i = 0; i < vt.length; i++)
-      {
-        if (!visible[i])
-          continue;
-        if (sel && !selected[i] && priorityToSelected)
-          continue;
-        Point v1 = screenVert[i];
-        if (pos.x < v1.x-HANDLE_SIZE/2 || pos.x > v1.x+HANDLE_SIZE/2 ||
-            pos.y < v1.y-HANDLE_SIZE/2 || pos.y > v1.y+HANDLE_SIZE/2)
-          continue;
-        z = theCamera.getObjectToView().timesZ(vt[i].r);
-        if (z < closestz || (!sel && selected[i] && priorityToSelected))
-        {
-          which = i;
-          closestz = z;
-          sel = selected[i];
-        }
-      }
+      return handlePointMode(pos, uvw, selected, priorityToSelected, closestz, sel);
     }
     else if (controller.getSelectionMode() == MeshEditController.EDGE_MODE)
     {
-      TriangleMesh mesh = (TriangleMesh) getController().getObject().getObject();
-      Vertex vt[];
-      Edge ed[], origEd[] = mesh.getEdges();
-      int projectedEdge[] = null;
-      if (controller instanceof TriMeshEditorWindow)
-        projectedEdge = ((TriMeshEditorWindow) controller).findProjectedEdges();
-      if (projectedEdge != null)
-        mesh = ((TriMeshEditorWindow) controller).getSubdividedMesh();
-      vt = (Vertex []) mesh.getVertices();
-      ed = mesh.getEdges();
-      boolean hideEdge[] = (controller instanceof TriMeshEditorWindow ? ((TriMeshEditorWindow) controller).hideEdge : new boolean [ed.length]);
-      for (int i = 0; i < ed.length; i++)
-      {
-        Point v1, v2;
-        if (projectedEdge == null)
-        {
-          if (!visible[ed[i].v1] || !visible[ed[i].v2])
-            continue;
-          if (hideEdge[i])
-            continue;
-          if (sel && !selected[i] && priorityToSelected)
-            continue;
-          v1 = screenVert[ed[i].v1];
-          v2 = screenVert[ed[i].v2];
-        }
-        else
-        {
-          int orig = projectedEdge[i];
-          if (orig == -1)
-            continue;
-          if (!visible[origEd[orig].v1] || !visible[origEd[orig].v2])
-            continue;
-          if (hideEdge[orig])
-            continue;
-          if (sel && !selected[orig] && priorityToSelected)
-            continue;
-          Vec2 screen1 = theCamera.getObjectToScreen().timesXY(vt[ed[i].v1].r);
-          Vec2 screen2 = theCamera.getObjectToScreen().timesXY(vt[ed[i].v2].r);
-          v1 = new Point((int) screen1.x, (int) screen1.y);
-          v2 = new Point((int) screen2.x, (int) screen2.y);
-        }
-        if ((pos.x < v1.x-HANDLE_SIZE/2 && pos.x < v2.x-HANDLE_SIZE/2) ||
-                (pos.x > v1.x+HANDLE_SIZE/2 && pos.x > v2.x+HANDLE_SIZE/2) ||
-                (pos.y < v1.y-HANDLE_SIZE/2 && pos.y < v2.y-HANDLE_SIZE/2) ||
-                (pos.y > v1.y+HANDLE_SIZE/2 && pos.y > v2.y+HANDLE_SIZE/2))
-          continue;
-
-        // Determine the distance of the click point from the line.
-
-        if (Math.abs(v1.x-v2.x) > Math.abs(v1.y-v2.y))
-        {
-          if (v2.x > v1.x)
-          {
-            v = ((double) pos.x-v1.x)/(v2.x-v1.x);
-            u = 1.0-v;
-          }
-          else
-          {
-            u = ((double) pos.x-v2.x)/(v1.x-v2.x);
-            v = 1.0-u;
-          }
-          w = u*v1.y + v*v2.y - pos.y;
-        }
-        else
-        {
-          if (v2.y > v1.y)
-          {
-            v = ((double) pos.y-v1.y)/(v2.y-v1.y);
-            u = 1.0-v;
-          }
-          else
-          {
-            u = ((double) pos.y-v2.y)/(v1.y-v2.y);
-            v = 1.0-u;
-          }
-          w = u*v1.x + v*v2.x - pos.x;
-        }
-        if (Math.abs(w) > HANDLE_SIZE/2)
-          continue;
-        int index = (projectedEdge == null ? i : projectedEdge[i]);
-        z = u*theCamera.getObjectToView().timesZ(vt[ed[i].v1].r) +
-                v*theCamera.getObjectToView().timesZ(vt[ed[i].v2].r);
-        if (z < closestz || (!sel && selected[index] && priorityToSelected))
-        {
-          which = index;
-          closestz = z;
-          sel = selected[which];
-          if (uvw != null)
-            uvw.set(u, v, w);
-        }
-      }
+      return handleEdgeMode(pos, uvw, selected, priorityToSelected, closestz, sel);
     }
     else
     {
-      TriangleMesh mesh = null;
-      if (controller instanceof TriMeshEditorWindow)
-        mesh = ((TriMeshEditorWindow) controller).getSubdividedMesh();
-      if (mesh == null)
-        mesh = (TriangleMesh) getController().getObject().getObject();
-      Vertex vt[] = (Vertex []) mesh.getVertices();
-      Face fc[] = mesh.getFaces();
-      Face origFc[] = ((TriangleMesh) getController().getObject().getObject()).getFaces();
-      double param[] = null;
-      boolean hideFace[] = null;
-      if (controller instanceof TriMeshEditorWindow)
-      {
-        TriMeshEditorWindow win = (TriMeshEditorWindow) controller;
-        if (win.getFaceIndexParameter() != null)
-          param = ((FaceParameterValue) mesh.getParameterValue(win.getFaceIndexParameter())).getValue();
-        hideFace = win.hideFace;
-      }
-      for (int i = 0; i < fc.length; i++)
-      {
-        int index = (param == null ? i : (int) param[i]);
-        if (hideFace != null && hideFace[index])
-          continue;
-        if (!visible[origFc[index].v1] || !visible[origFc[index].v2] || !visible[origFc[index].v3])
-          continue;
-        if (sel && !selected[index] && priorityToSelected)
-          continue;
-        Vec2 screen1 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v1].r);
-        Vec2 screen2 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v2].r);
-        Vec2 screen3 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v3].r);
-        Point v1 = new Point((int) screen1.x, (int) screen1.y);
-        Point v2 = new Point((int) screen2.x, (int) screen2.y);
-        Point v3 = new Point((int) screen3.x, (int) screen3.y);
-        if ((pos.x < v1.x-HANDLE_SIZE/2 && pos.x < v2.x-HANDLE_SIZE/2 && pos.x < v3.x-HANDLE_SIZE/2) ||
-                (pos.x > v1.x+HANDLE_SIZE/2 && pos.x > v2.x+HANDLE_SIZE/2 && pos.x > v3.x+HANDLE_SIZE/2) ||
-                (pos.y < v1.y-HANDLE_SIZE/2 && pos.y < v2.y-HANDLE_SIZE/2 && pos.y < v3.y-HANDLE_SIZE/2) ||
-                (pos.y > v1.y+HANDLE_SIZE/2 && pos.y > v2.y+HANDLE_SIZE/2 && pos.y > v3.y+HANDLE_SIZE/2))
-          continue;
+      return handleFaceMode(pos, uvw, selected, priorityToSelected, closestz, sel);
+    }
+  }
 
-        // Determine whether the click point was inside the triangle.
-
-        double e1x = v1.x-v2.x;
-        double e1y = v1.y-v2.y;
-        double e2x = v1.x-v3.x;
-        double e2y = v1.y-v3.y;
-        double denom = 1.0/(e1x*e2y-e1y*e2x);
-        e1x *= denom;
-        e1y *= denom;
-        e2x *= denom;
-        e2y *= denom;
-        double vx = pos.x - v1.x;
-        double vy = pos.y - v1.y;
-        v = e2x*vy - e2y*vx;
-        if (v < 0.0 || v > 1.0)
-          continue;
-        w = vx*e1y - vy*e1x;
-        if (w < 0.0 || w > 1.0)
-          continue;
-        u = 1.0-v-w;
-        if (u < 0.0 || u > 1.0)
-          continue;
-        z = u*theCamera.getObjectToView().timesZ(vt[fc[i].v1].r) +
-            v*theCamera.getObjectToView().timesZ(vt[fc[i].v2].r) +
-                w*theCamera.getObjectToView().timesZ(vt[fc[i].v3].r);
-        if (z < closestz || (!sel && selected[index] && priorityToSelected))
-        {
-          which = index;
-          closestz = z;
-          sel = selected[index];
-          if (uvw != null)
-            uvw.set(u, v, w);
-        }
+  private int handlePointMode(Point pos, Vec3 uvw, boolean[] selected, boolean priorityToSelected, double closestz, boolean sel)
+  {
+    int which = -1;
+    TriangleMesh mesh = (TriangleMesh) getController().getObject().getObject();
+    Vertex vt[] = (Vertex []) mesh.getVertices();
+    for (int i = 0; i < vt.length; i++)
+    {
+      if (!visible[i])
+        continue;
+      if (sel && !selected[i] && priorityToSelected)
+        continue;
+      Point v1 = screenVert[i];
+      if (pos.x < v1.x-HANDLE_SIZE/2 || pos.x > v1.x+HANDLE_SIZE/2 ||
+              pos.y < v1.y-HANDLE_SIZE/2 || pos.y > v1.y+HANDLE_SIZE/2)
+        continue;
+      double z = theCamera.getObjectToView().timesZ(vt[i].r);
+      if (z < closestz || (!sel && selected[i] && priorityToSelected))
+      {
+        which = i;
+        closestz = z;
+        sel = selected[i];
       }
     }
     return which;
   }
+
+  private int handleEdgeMode(Point pos, Vec3 uvw, boolean[] selected, boolean priorityToSelected, double closestz, boolean sel)
+  {
+    int which = -1;
+    TriangleMesh mesh = (TriangleMesh) getController().getObject().getObject();
+    Vertex vt[];
+    Edge ed[], origEd[] = mesh.getEdges();
+    int projectedEdge[] = null;
+    if (controller instanceof TriMeshEditorWindow)
+      projectedEdge = ((TriMeshEditorWindow) controller).findProjectedEdges();
+    if (projectedEdge != null)
+      mesh = ((TriMeshEditorWindow) controller).getSubdividedMesh();
+    vt = (Vertex []) mesh.getVertices();
+    ed = mesh.getEdges();
+    boolean hideEdge[] = (controller instanceof TriMeshEditorWindow ? ((TriMeshEditorWindow) controller).hideEdge : new boolean [ed.length]);
+    for (int i = 0; i < ed.length; i++)
+    {
+      Point v1, v2;
+      if (projectedEdge == null)
+      {
+        if (!visible[ed[i].v1] || !visible[ed[i].v2])
+          continue;
+        if (hideEdge[i])
+          continue;
+        if (sel && !selected[i] && priorityToSelected)
+          continue;
+        v1 = screenVert[ed[i].v1];
+        v2 = screenVert[ed[i].v2];
+      }
+      else
+      {
+        int orig = projectedEdge[i];
+        if (orig == -1)
+          continue;
+        if (!visible[origEd[orig].v1] || !visible[origEd[orig].v2])
+          continue;
+        if (hideEdge[orig])
+          continue;
+        if (sel && !selected[orig] && priorityToSelected)
+          continue;
+        Vec2 screen1 = theCamera.getObjectToScreen().timesXY(vt[ed[i].v1].r);
+        Vec2 screen2 = theCamera.getObjectToScreen().timesXY(vt[ed[i].v2].r);
+        v1 = new Point((int) screen1.x, (int) screen1.y);
+        v2 = new Point((int) screen2.x, (int) screen2.y);
+      }
+      if ((pos.x < v1.x-HANDLE_SIZE/2 && pos.x < v2.x-HANDLE_SIZE/2) ||
+              (pos.x > v1.x+HANDLE_SIZE/2 && pos.x > v2.x+HANDLE_SIZE/2) ||
+              (pos.y < v1.y-HANDLE_SIZE/2 && pos.y < v2.y-HANDLE_SIZE/2) ||
+              (pos.y > v1.y+HANDLE_SIZE/2 && pos.y > v2.y+HANDLE_SIZE/2))
+        continue;
+
+      // Determine the distance of the click point from the line.
+
+      double u, v, w;
+      if (Math.abs(v1.x-v2.x) > Math.abs(v1.y-v2.y))
+      {
+        if (v2.x > v1.x)
+        {
+          v = ((double) pos.x-v1.x)/(v2.x-v1.x);
+          u = 1.0-v;
+        }
+        else
+        {
+          u = ((double) pos.x-v2.x)/(v1.x-v2.x);
+          v = 1.0-u;
+        }
+        w = u*v1.y + v*v2.y - pos.y;
+      }
+      else
+      {
+        if (v2.y > v1.y)
+        {
+          v = ((double) pos.y-v1.y)/(v2.y-v1.y);
+          u = 1.0-v;
+        }
+        else
+        {
+          u = ((double) pos.y-v2.y)/(v1.y-v2.y);
+          v = 1.0-u;
+        }
+        w = u*v1.x + v*v2.x - pos.x;
+      }
+      if (Math.abs(w) > HANDLE_SIZE/2)
+        continue;
+      int index = (projectedEdge == null ? i : projectedEdge[i]);
+      double z = u*theCamera.getObjectToView().timesZ(vt[ed[i].v1].r) +
+              v*theCamera.getObjectToView().timesZ(vt[ed[i].v2].r);
+      if (z < closestz || (!sel && selected[index] && priorityToSelected))
+      {
+        which = index;
+        closestz = z;
+        sel = selected[which];
+        if (uvw != null)
+          uvw.set(u, v, w);
+      }
+    }
+    return which;
+  }
+
+  private int handleFaceMode(Point pos, Vec3 uvw, boolean[] selected, boolean priorityToSelected, double closestz, boolean sel)
+  {
+    int which = -1;
+    TriangleMesh mesh = null;
+    if (controller instanceof TriMeshEditorWindow)
+      mesh = ((TriMeshEditorWindow) controller).getSubdividedMesh();
+    if (mesh == null)
+      mesh = (TriangleMesh) getController().getObject().getObject();
+    Vertex vt[] = (Vertex []) mesh.getVertices();
+    Face fc[] = mesh.getFaces();
+    Face origFc[] = ((TriangleMesh) getController().getObject().getObject()).getFaces();
+    double param[] = null;
+    boolean hideFace[] = null;
+    if (controller instanceof TriMeshEditorWindow)
+    {
+      TriMeshEditorWindow win = (TriMeshEditorWindow) controller;
+      if (win.getFaceIndexParameter() != null)
+        param = ((FaceParameterValue) mesh.getParameterValue(win.getFaceIndexParameter())).getValue();
+      hideFace = win.hideFace;
+    }
+    for (int i = 0; i < fc.length; i++)
+    {
+      int index = (param == null ? i : (int) param[i]);
+      if (hideFace != null && hideFace[index])
+        continue;
+      if (!visible[origFc[index].v1] || !visible[origFc[index].v2] || !visible[origFc[index].v3])
+        continue;
+      if (sel && !selected[index] && priorityToSelected)
+        continue;
+      Vec2 screen1 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v1].r);
+      Vec2 screen2 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v2].r);
+      Vec2 screen3 = theCamera.getObjectToScreen().timesXY(vt[fc[i].v3].r);
+      Point v1 = new Point((int) screen1.x, (int) screen1.y);
+      Point v2 = new Point((int) screen2.x, (int) screen2.y);
+      Point v3 = new Point((int) screen3.x, (int) screen3.y);
+      if ((pos.x < v1.x-HANDLE_SIZE/2 && pos.x < v2.x-HANDLE_SIZE/2 && pos.x < v3.x-HANDLE_SIZE/2) ||
+              (pos.x > v1.x+HANDLE_SIZE/2 && pos.x > v2.x+HANDLE_SIZE/2 && pos.x > v3.x+HANDLE_SIZE/2) ||
+              (pos.y < v1.y-HANDLE_SIZE/2 && pos.y < v2.y-HANDLE_SIZE/2 && pos.y < v3.y-HANDLE_SIZE/2) ||
+              (pos.y > v1.y+HANDLE_SIZE/2 && pos.y > v2.y+HANDLE_SIZE/2 && pos.y > v3.y+HANDLE_SIZE/2))
+        continue;
+
+      // Determine whether the click point was inside the triangle.
+
+      double e1x = v1.x-v2.x;
+      double e1y = v1.y-v2.y;
+      double e2x = v1.x-v3.x;
+      double e2y = v1.y-v3.y;
+      double denom = 1.0/(e1x*e2y-e1y*e2x);
+      e1x *= denom;
+      e1y *= denom;
+      e2x *= denom;
+      e2y *= denom;
+      double vx = pos.x - v1.x;
+      double vy = pos.y - v1.y;
+      double u, v, w;
+      v = e2x*vy - e2y*vx;
+      if (v < 0.0 || v > 1.0)
+        continue;
+      w = vx*e1y - vy*e1x;
+      if (w < 0.0 || w > 1.0)
+        continue;
+      u = 1.0-v-w;
+      if (u < 0.0 || u > 1.0)
+        continue;
+      double z = u*theCamera.getObjectToView().timesZ(vt[fc[i].v1].r) +
+              v*theCamera.getObjectToView().timesZ(vt[fc[i].v2].r) +
+              w*theCamera.getObjectToView().timesZ(vt[fc[i].v3].r);
+      if (z < closestz || (!sel && selected[index] && priorityToSelected))
+      {
+        which = index;
+        closestz = z;
+        sel = selected[index];
+        if (uvw != null)
+          uvw.set(u, v, w);
+      }
+    }
+    return which;
+  }
+
+
   
   /** The TriMeshEditorWindow may hide parts of the control mesh.
       Get how it affects the preview mesh. */
